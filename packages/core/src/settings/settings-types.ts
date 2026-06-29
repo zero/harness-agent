@@ -1,15 +1,5 @@
+import type { McpServerConfig } from "../mcp/mcp-types";
 import type { ProviderProfile } from "../providers/provider-types";
-
-export interface McpServerConfig {
-  id: string;
-  name: string;
-  transport: "stdio" | "http";
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
-  headers?: Record<string, string>;
-}
 
 export interface CommandPolicy {
   timeoutMs: number;
