@@ -27,7 +27,14 @@ export default [
     rules: {
       ...reactHooks.configs.recommended.rules,
       "no-unused-vars": "off",
-      "no-undef": "off"
+      "no-undef": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_"
+        }
+      ]
     }
   }
 ];
