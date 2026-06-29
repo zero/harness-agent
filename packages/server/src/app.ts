@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -8,14 +8,23 @@ import {
   type GlobalSettings,
   type Project
 } from "@harness-agent/core";
+import { writeArtifact } from "@harness-agent/tools";
 import { Hono } from "hono";
 
 import { createDefaultSettings } from "./config/default-settings";
 import { SessionStore } from "./sessions/session-store";
 import { JsonFileStore } from "./storage/json-store";
 
+export interface RuntimeTaskRequest {
+  sessionId: string;
+  messageId: string;
+  project: Project;
+  content: string;
+  providerProfileId: string;
+}
+
 export interface RuntimeLike {
-  runTask(request: unknown): AsyncIterable<AgentEvent>;
+  runTask(request: RuntimeTaskRequest): AsyncIterable<AgentEvent>;
 }
 
 export interface CreateServerAppOptions {
@@ -53,12 +62,97 @@ function sse(events: AgentEvent[]): Response {
 
 function createDefaultRuntime(): RuntimeLike {
   return {
-    async *runTask(request: { sessionId: string; messageId: string }): AsyncIterable<AgentEvent> {
+    async *runTask(request: RuntimeTaskRequest): AsyncIterable<AgentEvent> {
       yield { type: "session.started", sessionId: request.sessionId };
       yield {
         type: "message.delta",
         messageId: request.messageId,
-        text: "Local runtime is ready."
+        text: "Running a local harness task inside the selected project. "
+      };
+
+      const commonContent = [
+        `Prompt: ${request.content}`,
+        "",
+        "This local runtime demonstrates workspace-bounded artifact generation without requiring an API key."
+      ].join("\n");
+      const artifactInputs: Omit<Parameters<typeof writeArtifact>[0], "project">[] = [
+        {
+          sessionId: request.sessionId,
+          kind: "markdown",
+          title: "Local Task Summary",
+          content: commonContent
+        },
+        {
+          sessionId: request.sessionId,
+          kind: "html",
+          title: "Local Task Preview",
+          content: `<h1>Local Task Preview</h1><p>${request.content}</p>`
+        },
+        {
+          sessionId: request.sessionId,
+          kind: "csv",
+          title: "Local Task Data",
+          rows: [
+            { metric: "provider", value: request.providerProfileId },
+            { metric: "workspace", value: request.project.workspacePath },
+            { metric: "prompt", value: request.content }
+          ]
+        },
+        {
+          sessionId: request.sessionId,
+          kind: "xlsx",
+          title: "Local Task Workbook",
+          rows: [
+            { step: "plan", status: "done" },
+            { step: "artifact generation", status: "done" },
+            { step: "preview wiring", status: "done" }
+          ]
+        },
+        {
+          sessionId: request.sessionId,
+          kind: "docx",
+          title: "Local Task Document",
+          content: commonContent
+        },
+        {
+          sessionId: request.sessionId,
+          kind: "pptx",
+          title: "Local Task Deck",
+          content: commonContent
+        },
+        {
+          sessionId: request.sessionId,
+          kind: "pdf",
+          title: "Local Task Brief",
+          content: commonContent
+        }
+      ];
+
+      for (const artifactInput of artifactInputs) {
+        const callId = `artifact-${artifactInput.kind}`;
+        yield {
+          type: "tool.call",
+          callId,
+          toolName: "artifact.write",
+          input: artifactInput
+        };
+        const artifact = await writeArtifact({
+          ...artifactInput,
+          project: request.project
+        });
+        yield {
+          type: "tool.result",
+          callId,
+          toolName: "artifact.write",
+          output: artifact
+        };
+        yield { type: "artifact.created", artifact };
+      }
+
+      yield {
+        type: "message.delta",
+        messageId: request.messageId,
+        text: "Generated local artifacts: markdown, html, csv, xlsx, docx, pptx, and pdf."
       };
       yield { type: "message.completed", messageId: request.messageId };
       yield { type: "session.completed", sessionId: request.sessionId };
@@ -71,10 +165,13 @@ function previewArtifact(artifact: Artifact, content: string): Record<string, un
     return { kind: artifact.kind, json: JSON.parse(content) };
   }
 
+  if (artifact.kind === "csv") {
+    return { kind: artifact.kind, content, rows: parseCsvRows(content) };
+  }
+
   if (
     artifact.kind === "markdown" ||
     artifact.kind === "html" ||
-    artifact.kind === "csv" ||
     artifact.kind === "text"
   ) {
     return { kind: artifact.kind, content };
@@ -86,6 +183,27 @@ function previewArtifact(artifact: Artifact, content: string): Record<string, un
     mimeType: artifact.mimeType,
     sizeBytes: artifact.sizeBytes
   };
+}
+
+function parseCsvRows(content: string): Record<string, string>[] {
+  const [headerLine, ...lines] = content.trim().split(/\r?\n/);
+  if (!headerLine) {
+    return [];
+  }
+  const headers = headerLine.split(",");
+
+  return lines.map((line) => {
+    const values = line.split(",");
+    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
+  });
+}
+
+function isTextArtifact(kind: Artifact["kind"]): boolean {
+  return kind === "markdown" || kind === "html" || kind === "csv" || kind === "json" || kind === "text";
+}
+
+function upsertArtifact(artifacts: Artifact[], artifact: Artifact): Artifact[] {
+  return [...artifacts.filter((item) => item.id !== artifact.id), artifact];
 }
 
 export function createServerApp(options: CreateServerAppOptions): Hono {
@@ -141,6 +259,17 @@ export function createServerApp(options: CreateServerAppOptions): Hono {
   app.post("/api/providers/test", (context) => context.json({ ok: true }));
   app.post("/api/mcp/test", (context) => context.json({ ok: true }));
 
+  app.get("/api/artifacts", (context) => {
+    const projectId = context.req.query("projectId");
+    const sessionId = context.req.query("sessionId");
+    return context.json(
+      artifactStore
+        .get()
+        .filter((artifact) => !projectId || artifact.projectId === projectId)
+        .filter((artifact) => !sessionId || artifact.sessionId === sessionId)
+    );
+  });
+
   app.get("/api/sessions", (context) => {
     const projectId = context.req.query("projectId");
     return context.json(sessions.list(projectId));
@@ -185,8 +314,33 @@ export function createServerApp(options: CreateServerAppOptions): Hono {
     });
     sessions.update(sessionId, { status: "running" });
 
-    for await (const event of runtime.runTask({ sessionId, messageId, project })) {
+    let assistantContent = "";
+    for await (const event of runtime.runTask({
+      sessionId,
+      messageId,
+      project,
+      content: body.content,
+      providerProfileId: session.providerProfileId
+    })) {
       sessions.appendEvent(sessionId, event);
+      if (event.type === "message.delta") {
+        assistantContent += event.text;
+      }
+      if (event.type === "artifact.created") {
+        artifactStore.set(upsertArtifact(artifactStore.get(), event.artifact));
+        const latestSession = sessions.get(sessionId);
+        sessions.update(sessionId, {
+          artifactIds: [...new Set([...(latestSession?.artifactIds ?? []), event.artifact.id])]
+        });
+      }
+    }
+    if (assistantContent) {
+      sessions.appendMessage(sessionId, {
+        id: `${messageId}-assistant`,
+        role: "assistant",
+        content: assistantContent,
+        createdAt: now()
+      });
     }
     sessions.update(sessionId, { status: "completed" });
     return context.json({ ok: true, events: sessions.events(sessionId).length });
@@ -215,8 +369,17 @@ export function createServerApp(options: CreateServerAppOptions): Hono {
       if (!existsSync(path)) {
         return context.json({ error: "Artifact file not found" }, 404);
       }
-      return context.text(readFileSync(path, "utf8"), 200, {
-        "content-type": artifact.mimeType
+      const headers = {
+        "content-type": artifact.mimeType,
+        "content-length": String(statSync(path).size)
+      };
+      if (isTextArtifact(artifact.kind)) {
+        return context.text(readFileSync(path, "utf8"), 200, headers);
+      }
+
+      return new Response(readFileSync(path), {
+        status: 200,
+        headers
       });
     } catch (error) {
       return context.json({ error: (error as Error).message }, 400);
@@ -237,7 +400,8 @@ export function createServerApp(options: CreateServerAppOptions): Hono {
       if (!existsSync(path)) {
         return context.json({ error: "Artifact file not found" }, 404);
       }
-      return context.json(previewArtifact(artifact, readFileSync(path, "utf8")));
+      const content = isTextArtifact(artifact.kind) ? readFileSync(path, "utf8") : "";
+      return context.json(previewArtifact(artifact, content));
     } catch (error) {
       return context.json({ error: (error as Error).message }, 400);
     }

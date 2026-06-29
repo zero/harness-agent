@@ -18,4 +18,5 @@ export interface ArtifactViewModel {
   downloadUrl: string;
   content?: string;
   rows?: Record<string, unknown>[];
+  sizeBytes?: number;
 }

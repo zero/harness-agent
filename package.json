@@ -8,7 +8,7 @@
     "build": "pnpm -r build",
     "dev": "pnpm --parallel --filter @harness-agent/server --filter @harness-agent/web dev",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

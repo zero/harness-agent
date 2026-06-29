@@ -9,7 +9,7 @@ import {
 } from "@harness-agent/core";
 import { Document, Packer, Paragraph } from "docx";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import pptxgen from "pptxgenjs";
+import PptxGenJS from "pptxgenjs";
 import * as XLSX from "xlsx";
 
 export interface WriteArtifactInput {
@@ -79,7 +79,20 @@ async function writeDocx(path: string, title: string, content: string): Promise<
 }
 
 async function writePptx(path: string, title: string, content: string): Promise<void> {
-  const deck = new pptxgen();
+  type PptxConstructor = new () => {
+    addSlide: () => {
+      addText: (text: string, options: Record<string, unknown>) => void;
+    };
+    write: (options: { outputType: "nodebuffer" }) => Promise<unknown>;
+  };
+  const candidate = PptxGenJS as unknown as
+    | PptxConstructor
+    | { default?: PptxConstructor };
+  const PptxConstructor = typeof candidate === "function" ? candidate : candidate.default;
+  if (!PptxConstructor) {
+    throw new Error("Unable to load pptxgenjs constructor");
+  }
+  const deck = new PptxConstructor();
   const slide = deck.addSlide();
   slide.addText(title, { x: 0.5, y: 0.4, w: 9, h: 0.5, fontSize: 28, bold: true });
   slide.addText(content, { x: 0.5, y: 1.2, w: 9, h: 4, fontSize: 16 });
