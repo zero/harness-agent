@@ -1,9 +1,11 @@
-import { FileText, Play, Terminal } from "lucide-react";
+import { Play, Terminal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { ArtifactCard } from "@/features/artifacts/artifact-card";
+import { MarkdownRenderer } from "@/features/markdown/markdown-renderer";
 
 export function WorkspacePage() {
   return (
@@ -35,7 +37,7 @@ export function WorkspacePage() {
           <CardContent className="flex flex-col gap-4 p-4">
             <article className="rounded-md bg-muted p-3 text-sm">
               <h3 className="font-semibold">Assistant</h3>
-              <p>Generated a concise workspace summary and created an artifact.</p>
+              <MarkdownRenderer content={"Generated a concise workspace summary and created an artifact."} />
             </article>
             <details className="rounded-md border p-3 text-sm" open>
               <summary className="flex items-center gap-2 font-medium">
@@ -44,15 +46,15 @@ export function WorkspacePage() {
               </summary>
               <pre className="mt-2 overflow-auto text-xs">{"{ \"path\": \".\" }"}</pre>
             </details>
-            <Card>
-              <CardContent className="flex items-center justify-between gap-3 p-3">
-                <span className="flex items-center gap-2 text-sm">
-                  <FileText data-icon="inline-start" />
-                  report.pdf
-                </span>
-                <Button variant="outline" size="sm">Preview</Button>
-              </CardContent>
-            </Card>
+            <ArtifactCard
+              artifact={{
+                id: "artifact-1",
+                kind: "pdf",
+                title: "report.pdf",
+                mimeType: "application/pdf",
+                downloadUrl: "/api/artifacts/artifact-1"
+              }}
+            />
           </CardContent>
         </Card>
       </main>
