@@ -67,6 +67,31 @@ function rowsToCsv(rows: Record<string, unknown>[]): string {
     .join("\n");
 }
 
+function isCompleteHtmlDocument(content: string): boolean {
+  const trimmed = content.trimStart().toLowerCase();
+  return trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html");
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatJsonContent(title: string, content: string, rows: Record<string, unknown>[]): string {
+  if (content) {
+    try {
+      return JSON.stringify(JSON.parse(content), null, 2);
+    } catch {
+      return JSON.stringify({ title, content, rows }, null, 2);
+    }
+  }
+
+  return JSON.stringify({ title, content, rows }, null, 2);
+}
+
 async function writeDocx(path: string, title: string, content: string): Promise<void> {
   const document = new Document({
     sections: [
@@ -100,12 +125,34 @@ async function writePptx(path: string, title: string, content: string): Promise<
   writeFileSync(path, buffer);
 }
 
+function toPdfSafeText(text: string): string {
+  return Array.from(text)
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      if (character === "\n" || character === "\r" || character === "\t") {
+        return character;
+      }
+      if (codePoint >= 0x20 && codePoint <= 0x7e) {
+        return character;
+      }
+      return `\\u{${codePoint.toString(16)}}`;
+    })
+    .join("");
+}
+
 async function writePdf(path: string, title: string, content: string): Promise<void> {
   const document = await PDFDocument.create();
   const page = document.addPage([595, 842]);
   const font = await document.embedFont(StandardFonts.Helvetica);
-  page.drawText(title, { x: 48, y: 780, size: 22, font });
-  page.drawText(content, { x: 48, y: 740, size: 12, font, maxWidth: 500, lineHeight: 16 });
+  page.drawText(toPdfSafeText(title), { x: 48, y: 780, size: 22, font });
+  page.drawText(toPdfSafeText(content), {
+    x: 48,
+    y: 740,
+    size: 12,
+    font,
+    maxWidth: 500,
+    lineHeight: 16
+  });
   writeFileSync(path, await document.save());
 }
 
@@ -122,9 +169,16 @@ export async function writeArtifact(input: WriteArtifactInput): Promise<Artifact
   if (input.kind === "markdown") {
     writeFileSync(absolutePath, `# ${input.title}\n\n${content}`);
   } else if (input.kind === "html") {
-    writeFileSync(absolutePath, `<!doctype html><title>${input.title}</title><main>${content}</main>`);
+    writeFileSync(
+      absolutePath,
+      isCompleteHtmlDocument(content)
+        ? content
+        : `<!doctype html><html><head><title>${escapeHtml(
+            input.title
+          )}</title></head><body><main>${content}</main></body></html>`
+    );
   } else if (input.kind === "csv") {
-    writeFileSync(absolutePath, rowsToCsv(rows));
+    writeFileSync(absolutePath, content || rowsToCsv(rows));
   } else if (input.kind === "xlsx") {
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(rows);
@@ -137,7 +191,7 @@ export async function writeArtifact(input: WriteArtifactInput): Promise<Artifact
   } else if (input.kind === "pdf") {
     await writePdf(absolutePath, input.title, content);
   } else if (input.kind === "json") {
-    writeFileSync(absolutePath, JSON.stringify({ title: input.title, content, rows }, null, 2));
+    writeFileSync(absolutePath, formatJsonContent(input.title, content, rows));
   } else if (input.kind === "text") {
     writeFileSync(absolutePath, content);
   } else {

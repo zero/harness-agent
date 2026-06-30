@@ -26,17 +26,16 @@ describe("local agent smoke", () => {
 
     const messageResponse = await app.request(`/api/sessions/${session.id}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content: "make a local report" }),
+      body: JSON.stringify({ content: "生成一个本地闭环 smoke report" }),
       headers: { "content-type": "application/json" }
     });
     const updatedSession = await (await app.request(`/api/sessions/${session.id}`)).json();
+    const summaryArtifactId = `artifact-${session.id}-local-task-summary`;
+    const pdfArtifactId = `artifact-${session.id}-local-task-brief`;
 
     expect(messageResponse.status).toBe(200);
     expect(updatedSession.artifactIds).toEqual(
-      expect.arrayContaining([
-        "artifact-session-1-local-task-summary",
-        "artifact-session-1-local-task-brief"
-      ])
+      expect.arrayContaining([summaryArtifactId, pdfArtifactId])
     );
     expect(updatedSession.messages).toEqual(
       expect.arrayContaining([
@@ -55,14 +54,14 @@ describe("local agent smoke", () => {
     );
 
     const markdownPreview = await (
-      await app.request("/api/artifacts/artifact-session-1-local-task-summary/preview")
+      await app.request(`/api/artifacts/${summaryArtifactId}/preview`)
     ).json();
     expect(markdownPreview).toMatchObject({
       kind: "markdown",
-      content: expect.stringContaining("make a local report")
+      content: expect.stringContaining("生成一个本地闭环 smoke report")
     });
 
-    const pdfResponse = await app.request("/api/artifacts/artifact-session-1-local-task-brief");
+    const pdfResponse = await app.request(`/api/artifacts/${pdfArtifactId}`);
     const pdfHeader = Buffer.from(await pdfResponse.arrayBuffer()).subarray(0, 4).toString("utf8");
 
     expect(pdfResponse.headers.get("content-type")).toContain("application/pdf");

@@ -2,8 +2,15 @@ import {
   DEEPSEEK_PRESET,
   type GlobalSettings
 } from "@harness-agent/core";
+import { join } from "node:path";
+
+function exampleWriterSkillPath(): string {
+  return join(process.cwd(), "../example-skills/writer");
+}
 
 export function createDefaultSettings(): GlobalSettings {
+  const writerSkillPath = exampleWriterSkillPath();
+
   return {
     providerProfiles: [DEEPSEEK_PRESET],
     enabledToolIds: [
@@ -17,10 +24,18 @@ export function createDefaultSettings(): GlobalSettings {
       "artifact.write",
       "skill.create"
     ],
-    mcpServers: [],
-    enabledMcpServerIds: [],
-    skillPaths: [],
-    enabledSkillPaths: [],
+    mcpServers: [
+      {
+        id: "community-fixtures",
+        name: "Community Fixtures",
+        transport: "stdio",
+        command: "fixture",
+        args: []
+      }
+    ],
+    enabledMcpServerIds: ["community-fixtures"],
+    skillPaths: [writerSkillPath],
+    enabledSkillPaths: [writerSkillPath],
     commandPolicy: {
       timeoutMs: 30_000,
       maxOutputBytes: 64_000,

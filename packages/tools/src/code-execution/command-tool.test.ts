@@ -32,6 +32,19 @@ describe("command execution tool", () => {
     expect(result.truncated).toBe(true);
   });
 
+  it("reports the signal when a command is terminated by a signal", async () => {
+    const project = createTempProject();
+
+    const result = await executeProjectCommand(project, {
+      command: "kill -PIPE $$",
+      timeoutMs: 1000,
+      maxOutputBytes: 2048
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.signal).toBe("SIGPIPE");
+  });
+
   it("rejects cwd outside the project workspace", async () => {
     const project = createTempProject();
 

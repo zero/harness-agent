@@ -12,6 +12,7 @@ export interface ExecuteProjectCommandInput {
 
 export interface ExecuteProjectCommandResult {
   exitCode: number | null;
+  signal?: NodeJS.Signals | null;
   stdout: string;
   stderr: string;
   timedOut: boolean;
@@ -79,10 +80,11 @@ export async function executeProjectCommand(
       truncated = truncated || didTruncate;
     });
 
-    child.on("close", (exitCode) => {
+    child.on("close", (exitCode, signal) => {
       clearTimeout(timeout);
       resolvePromise({
         exitCode,
+        signal,
         stdout,
         stderr,
         timedOut,

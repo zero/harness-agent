@@ -16,12 +16,15 @@ describe("ProjectsPage", () => {
             updatedAt: "2026-06-29T00:00:00.000Z"
           }
         ]}
+        onDeleteProject={() => undefined}
       />
     );
 
     expect(html).toContain("Projects");
     expect(html).toContain("Workspace path");
+    expect(html).toContain("Browse workspace");
     expect(html).toContain("Create project");
+    expect(html).toContain("Delete Harness");
     expect(html).toContain("/tmp/harness");
   });
 });

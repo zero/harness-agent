@@ -38,8 +38,8 @@ pnpm dev
 
 Default local URLs:
 
-- Server: `http://localhost:8787`
-- Web console: `http://localhost:5173`
+- Server: `http://localhost:18787`
+- Web console: `http://localhost:15173`
 
 The default runtime does not require an API key. Sending a message creates demo artifacts inside
 the selected project's `.harness-agent/artifacts/<session-id>/` directory and exposes them through

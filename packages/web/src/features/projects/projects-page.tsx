@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FolderOpen, Trash2 } from "lucide-react";
 
 import type { ProjectDto } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -9,14 +10,18 @@ export interface ProjectsPageProps {
   projects?: ProjectDto[];
   selectedProjectId?: string;
   onCreateProject?: (input: { name: string; workspacePath: string }) => void | Promise<void>;
+  onPickWorkspace?: () => Promise<string | undefined>;
   onSelectProject?: (projectId: string) => void;
+  onDeleteProject?: (projectId: string) => void | Promise<void>;
 }
 
 export function ProjectsPage({
   projects = [],
   selectedProjectId,
   onCreateProject,
-  onSelectProject
+  onPickWorkspace,
+  onSelectProject,
+  onDeleteProject
 }: ProjectsPageProps) {
   const [name, setName] = useState("");
   const [workspacePath, setWorkspacePath] = useState("");
@@ -28,6 +33,13 @@ export function ProjectsPage({
     await onCreateProject?.({ name: name.trim(), workspacePath: workspacePath.trim() });
     setName("");
     setWorkspacePath("");
+  }
+
+  async function pickWorkspace() {
+    const selectedPath = await onPickWorkspace?.();
+    if (selectedPath) {
+      setWorkspacePath(selectedPath);
+    }
   }
 
   return (
@@ -44,7 +56,7 @@ export function ProjectsPage({
           <CardTitle>New project</CardTitle>
           <CardDescription>Workspace path</CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-3">
+        <CardContent className="grid gap-3 md:grid-cols-[minmax(12rem,1fr)_minmax(16rem,1.4fr)_auto_auto]">
           <Input
             aria-label="Project name"
             placeholder="Project name"
@@ -57,6 +69,10 @@ export function ProjectsPage({
             value={workspacePath}
             onChange={(event) => setWorkspacePath(event.target.value)}
           />
+          <Button className="whitespace-nowrap" variant="outline" onClick={() => void pickWorkspace()}>
+            <FolderOpen data-icon="inline-start" />
+            Browse workspace
+          </Button>
           <Button variant="outline" onClick={createProject}>
             Save
           </Button>
@@ -64,14 +80,28 @@ export function ProjectsPage({
       </Card>
       <div className="grid gap-3 md:grid-cols-2">
         {projects.map((project) => (
-          <button key={project.id} className="text-left" onClick={() => onSelectProject?.(project.id)}>
-            <Card className={project.id === selectedProjectId ? "border-primary" : undefined}>
-            <CardHeader>
-              <CardTitle>{project.name}</CardTitle>
-              <CardDescription>{project.workspacePath}</CardDescription>
+          <Card key={project.id} className={project.id === selectedProjectId ? "border-primary" : undefined}>
+            <CardHeader className="flex-row items-start justify-between gap-3">
+              <button
+                className="min-w-0 text-left"
+                onClick={() => onSelectProject?.(project.id)}
+              >
+                <CardTitle>{project.name}</CardTitle>
+                <CardDescription>{project.workspacePath}</CardDescription>
+              </button>
+              {onDeleteProject ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title={`Delete ${project.name}`}
+                  aria-label={`Delete ${project.name}`}
+                  onClick={() => void onDeleteProject(project.id)}
+                >
+                  <Trash2 />
+                </Button>
+              ) : null}
             </CardHeader>
           </Card>
-          </button>
         ))}
       </div>
     </section>

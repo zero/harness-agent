@@ -64,6 +64,9 @@ importers:
       '@harness-agent/core':
         specifier: workspace:*
         version: link:../core
+      '@harness-agent/mcp-fixtures':
+        specifier: workspace:*
+        version: link:../mcp-fixtures
       '@harness-agent/tools':
         specifier: workspace:*
         version: link:../tools

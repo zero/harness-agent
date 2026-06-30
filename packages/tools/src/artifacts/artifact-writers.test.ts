@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -47,5 +47,37 @@ describe("artifact writers", () => {
     expect(artifact.relativePath).toContain(".harness-agent/artifacts/session-1");
     expect(existsSync(join(project.workspacePath, artifact.relativePath))).toBe(true);
     expect(artifact.sizeBytes).toBeGreaterThan(0);
+  });
+
+  it("writes PDF artifacts when content contains unicode text", async () => {
+    const project = createTempProject();
+    const artifact = await writeArtifact({
+      project,
+      sessionId: "session-1",
+      kind: "pdf",
+      title: "中文 PDF 报告",
+      content: "生成一个本地闭环 smoke report",
+      rows: []
+    });
+
+    const bytes = readFileSync(join(project.workspacePath, artifact.relativePath));
+
+    expect(artifact.mimeType).toBe("application/pdf");
+    expect(bytes.subarray(0, 4).toString("utf8")).toBe("%PDF");
+  });
+
+  it("preserves complete HTML documents for previewable report artifacts", async () => {
+    const project = createTempProject();
+    const html = "<!doctype html><html><body><h1>Quarterly Report</h1></body></html>";
+
+    const artifact = await writeArtifact({
+      project,
+      sessionId: "session-1",
+      kind: "html",
+      title: "HTML Report",
+      content: html
+    });
+
+    expect(readFileSync(join(project.workspacePath, artifact.relativePath), "utf8")).toBe(html);
   });
 });

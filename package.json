@@ -6,7 +6,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm --parallel --filter @harness-agent/server --filter @harness-agent/web dev",
+    "dev": "pnpm --filter @harness-agent/core --filter @harness-agent/tools --filter @harness-agent/mcp-fixtures build && pnpm --parallel --filter @harness-agent/server --filter @harness-agent/web dev",
     "lint": "eslint .",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
